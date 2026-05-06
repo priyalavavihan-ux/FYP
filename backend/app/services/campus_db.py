@@ -164,12 +164,23 @@ CAMPUS_EVENTS = [
     {"name": "AI Research Seminar", "time": "2:00pm", "location": "City Campus East", "date": "today", "type": "academic"},
     {"name": "Freshers Fair", "time": "11:00am", "location": "Students' Union", "date": "tomorrow", "type": "social"},
     {"name": "Careers Workshop", "time": "3:00pm", "location": "Northumberland Building", "date": "today", "type": "careers"},
+    {"name": "Careers Fair", "time": "10:00am", "location": "Ellison Building", "date": "next week", "type": "careers"},
+    {"name": "Freshers Week", "time": "All day", "location": "City Campus", "date": "next week", "type": "social"},
+    {"name": "Graduation Ceremony", "time": "2:00pm", "location": "City Campus", "date": "this month", "type": "academic"},
+    {"name": "Student Union AGM", "time": "6:00pm", "location": "Students' Union", "date": "this week", "type": "social"},
+    {"name": "Postgraduate Open Evening", "time": "5:00pm", "location": "Ellison Building", "date": "this week", "type": "admissions"},
+    {"name": "Society Recruitment Fair", "time": "12:00pm", "location": "Students' Union", "date": "this week", "type": "social"},
 ]
 
 NEARBY_MAP = {
     "ellison building": ["City Campus Library", "Northumberland Building", "Sport Central", "Students' Union"],
-    "city campus library": ["Ellison Building", "Northumberland Building", "Students' Union"],
-    "northumberland building": ["Students' Union", "Ellison Building", "City Campus Library"],
+    "city campus library": ["Ellison Building", "Northumberland Building", "Students' Union", "Sport Central"],
+    "northumberland building": ["Students' Union", "Ellison Building", "City Campus Library", "Sport Central"],
+    "students union": ["Northumberland Building", "Ellison Building", "City Campus Library", "Sport Central"],
+    "sport central": ["Northumberland Building", "Ellison Building", "City Campus Library", "Students' Union"],
+    "city campus east": ["Ellison Building", "City Campus Library", "Northumberland Building"],
+    "pandon building": ["City Campus Library", "Ellison Building", "City Campus East"],
+    "coach lane campus": ["Coach Lane Campus"],
 }
 
 def _fuzzy_match(query: str, keys: list):
@@ -186,15 +197,43 @@ def get_facility_hours(name: str):
     return FACILITY_HOURS.get(key) if key else None
 
 def get_nearby_facilities(reference, facility_type):
-    if not reference:
-        return []
-    key = _fuzzy_match(reference, list(NEARBY_MAP.keys()))
+    query_lower = reference.lower().strip() if reference else ""
+    
+    # If no reference location, return general nearby facilities
+    if not query_lower:
+        return list(CAMPUS_LOCATIONS.values())[:3]
+    
+    key = _fuzzy_match(query_lower, list(NEARBY_MAP.keys()))
     if not key:
+        # Try matching against location keys directly
+        key = _fuzzy_match(query_lower, list(CAMPUS_LOCATIONS.keys()))
+        if key:
+            # Return other locations as nearby
+            return [v for k, v in CAMPUS_LOCATIONS.items() if k != key][:3]
         return []
-    return [CAMPUS_LOCATIONS[_fuzzy_match(n, list(CAMPUS_LOCATIONS.keys()))] for n in NEARBY_MAP[key] if _fuzzy_match(n, list(CAMPUS_LOCATIONS.keys()))]
+    
+    nearby_names = NEARBY_MAP[key]
+    result = []
+    for name in nearby_names:
+        loc_key = _fuzzy_match(name.lower(), list(CAMPUS_LOCATIONS.keys()))
+        if loc_key:
+            result.append(CAMPUS_LOCATIONS[loc_key])
+    return result
 
-def get_events(time_ref: str, location):
-    filtered = [e for e in CAMPUS_EVENTS if time_ref.lower() in e["date"] or e["date"] == "today"]
+def get_events(time_ref: str, location=None):
+    time_ref_lower = time_ref.lower().strip() if time_ref else ""
+    
+    # Direct date matches first
+    direct = [e for e in CAMPUS_EVENTS if time_ref_lower in e["date"]]
+    
+    # If no direct match, return today and this week events
+    if not direct:
+        direct = [e for e in CAMPUS_EVENTS if e["date"] in ["today", "this week"]]
+    
+    # Filter by location if provided
     if location:
-        filtered = [e for e in filtered if location.lower() in e["location"].lower()] or filtered
-    return filtered
+        location_filtered = [e for e in direct if location.lower() in e["location"].lower()]
+        if location_filtered:
+            direct = location_filtered
+
+    return direct[:5]
